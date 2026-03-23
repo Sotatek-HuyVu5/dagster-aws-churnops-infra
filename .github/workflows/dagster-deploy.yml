@@ -6,13 +6,9 @@ name: Dagster Deploy
 
 on:
   pull_request:
-    branches: [main]
-    paths:
-      - "helm/dagster/values-prod.yaml"
+    branches: [master]
   push:
-    branches: [main]
-    paths:
-      - "helm/dagster/**"
+    branches: [master]
 
 env:
   AWS_REGION: ap-southeast-1
@@ -28,7 +24,7 @@ permissions:
 jobs:
   helm-deploy:
     name: Helm upgrade (deploy)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
     outputs:
