@@ -1,0 +1,95 @@
+name: Dagster Deploy
+
+# Trigger: PR từ app repo cập nhật image tag → open PR vào đây
+# - PR open/sync  → helm dry-run, post comment
+# - PR merge      → helm upgrade --install
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "helm/dagster/values-prod.yaml"
+  push:
+    branches: [main]
+    paths:
+      - "helm/dagster/**"
+
+env:
+  AWS_REGION: ap-southeast-1
+  EKS_CLUSTER: churnops
+  HELM_RELEASE: dagster
+  K8S_NAMESPACE: dagster
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  helm-deploy:
+    name: Helm upgrade (deploy)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.post-deploy.outputs.image_tag }}
+      webserver_status: ${{ steps.post-deploy.outputs.webserver_status }}
+      daemon_status: ${{ steps.post-deploy.outputs.daemon_status }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::654654329682:role/github-assume-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Add Dagster Helm repo
+        run: |
+          helm repo add dagster https://dagster-io.github.io/helm
+          helm repo update
+
+      - name: Helm upgrade --install
+        run: |
+          helm upgrade --install ${{ env.HELM_RELEASE }} dagster/dagster \
+            -f helm/dagster/values-prod.yaml \
+            --namespace ${{ env.K8S_NAMESPACE }} \
+            --create-namespace \
+            --atomic \
+            --timeout 5m \
+            --wait
+
+      - name: Capture post-deploy outputs
+        id: post-deploy
+        run: |
+          IMAGE_TAG=$(grep 'tag:' helm/dagster/values-prod.yaml | awk '{print $2}')
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Deployed image tag: ${IMAGE_TAG}"
+
+          kubectl rollout status deployment/dagster-webserver -n ${{ env.K8S_NAMESPACE }} \
+            && echo "webserver_status=success" >> $GITHUB_OUTPUT \
+            || echo "webserver_status=failed" >> $GITHUB_OUTPUT
+
+          kubectl rollout status deployment/dagster-daemon -n ${{ env.K8S_NAMESPACE }} \
+            && echo "daemon_status=success" >> $GITHUB_OUTPUT \
+            || echo "daemon_status=failed" >> $GITHUB_OUTPUT
+
+      - name: Summary
+        run: |
+          echo "### Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Image Tag | \`${{ steps.post-deploy.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Webserver | ${{ steps.post-deploy.outputs.webserver_status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Daemon    | ${{ steps.post-deploy.outputs.daemon_status }} |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,21 @@
+aws_region   = "ap-southeast-1"
+project      = "churnops"
+environment  = "prod"
+
+# Networking
+vpc_cidr = "10.0.0.0/16"
+
+# EKS
+eks_cluster_version = "1.31"
+
+# RDS — Dagster metadata DB
+rds_instance_class      = "db.t3.micro"
+rds_allocated_storage   = 20
+rds_postgres_version    = "15"
+rds_db_name             = "dagster"
+rds_username            = "dagster"
+rds_skip_final_snapshot = true  # set false for production
+
+# Redshift
+redshift_base_capacity  = 8
+redshift_admin_username = "admin"

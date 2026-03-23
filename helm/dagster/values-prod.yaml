@@ -1,0 +1,138 @@
+# ─────────────────────────────────────────────
+# ChurnOps — Production overrides for official Dagster Helm chart
+# Chỉ override các giá trị cần thay đổi so với values.yaml mặc định
+#
+# Các giá trị REPLACE_WITH_* → điền sau khi chạy terraform apply
+# image.tag → app repo CI tự động update qua PR
+# ─────────────────────────────────────────────
+
+global:
+  postgresqlSecretName: "dagster-postgresql-secret"
+  serviceAccountName: "dagster-sa"
+
+# Xóa example user code deployment mặc định của chart
+dagster-user-deployments:
+  deployments: []
+
+# ─────────────────────────────────────────────
+# Webserver
+# ─────────────────────────────────────────────
+dagsterWebserver:
+  image:
+    # terraform output dagster_ecr_repo_url
+    repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
+    # ↓ App repo CI update dòng này khi tạo PR
+    tag: "20260323-071749-bd61db02"
+    pullPolicy: Always
+
+  nodeSelector:
+    workload: webserver
+
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+
+  # Inject credentials (PG password, AWS region, etc.) vào webserver pod
+  envSecrets:
+    - name: dagster-secrets
+
+# ─────────────────────────────────────────────
+# Compute Log Manager — lưu stdout/stderr lên S3
+# ─────────────────────────────────────────────
+computeLogManager:
+  type: S3ComputeLogManager
+  config:
+    s3ComputeLogManager:
+      # terraform output data_bucket_name
+      bucket: "churnops-data-prod"
+      prefix: "dagster-logs"
+
+# ─────────────────────────────────────────────
+# Run Launcher — K8s Job per Dagster run
+# ─────────────────────────────────────────────
+runLauncher:
+  type: K8sRunLauncher
+  config:
+    k8sRunLauncher:
+      imagePullPolicy: Always
+
+      # Image cho mỗi run Job (cùng image với webserver/daemon)
+      image:
+        # terraform output dagster_ecr_repo_url
+        repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
+        # ↓ App repo CI update dòng này cùng lúc với webserver
+        tag: "20260323-071749-bd61db02"
+        pullPolicy: Always
+
+      # Namespace để launch Job
+      jobNamespace: dagster
+
+      # Inject secret vào mỗi run Job pod
+      envSecrets:
+        - name: dagster-secrets
+
+      # Job pods chạy trên node group "jobs" (t3.small Spot)
+      # Tách biệt hoàn toàn khỏi webserver + daemon node
+      runK8sConfig:
+        podSpecConfig:
+          nodeSelector:
+            workload: jobs
+          tolerations:
+            - key: "workload"
+              value: "jobs"
+              effect: "NoSchedule"
+        jobSpecConfig:
+          ttlSecondsAfterFinished: 86400
+
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "1000m"
+          memory: "1Gi"
+
+# ─────────────────────────────────────────────
+# PostgreSQL — dùng RDS bên ngoài, không deploy in-cluster
+# ─────────────────────────────────────────────
+postgresql:
+  enabled: false
+
+  # terraform output rds_endpoint
+  postgresqlHost: "churnops-dagster-db.czyqcmom6xd0.ap-southeast-1.rds.amazonaws.com"
+  postgresqlUsername: "dagster"
+  postgresqlDatabase: "dagster"
+  # password lấy từ global.postgresqlSecretName (key: postgresql-password)
+
+  service:
+    port: 5432
+
+# ─────────────────────────────────────────────
+# Dagster Daemon
+# ─────────────────────────────────────────────
+dagsterDaemon:
+  image:
+    # terraform output dagster_ecr_repo_url
+    repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
+    # ↓ App repo CI update dòng này
+    tag: "20260323-071749-bd61db02"
+    pullPolicy: Always
+
+  # Chạy cùng node với webserver (t3.small On-Demand) — stable services
+  nodeSelector:
+    workload: webserver
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "250m"
+      memory: "512Mi"
+
+  envSecrets:
+    - name: dagster-secrets
