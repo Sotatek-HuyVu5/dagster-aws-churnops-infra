@@ -62,7 +62,7 @@ jobs:
             -f helm/dagster/values-prod.yaml \
             --namespace ${{ env.K8S_NAMESPACE }} \
             --create-namespace \
-            --atomic \
+            --rollback-on-failure \
             --timeout 5m \
             --wait
 
