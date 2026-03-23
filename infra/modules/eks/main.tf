@@ -123,5 +123,24 @@ module "eks" {
     }
   }
 
+  # ─────────────────────────────────────────────
+  # EKS Access Entry — GitHub Actions role
+  # Cần để helm/kubectl chạy được từ CI/CD
+  # ─────────────────────────────────────────────
+  access_entries = {
+    github_actions = {
+      principal_arn = "arn:aws:iam::654654329682:role/github-assume-role"
+
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   tags = { Name = "${var.project}-eks" }
 }

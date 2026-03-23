@@ -96,11 +96,12 @@ module "redshift" {
 module "eks" {
   source = "./modules/eks"
 
-  project            = var.project
-  cluster_version    = var.eks_cluster_version
-  vpc_id             = module.networking.vpc_id
-  private_subnet_ids = module.networking.private_subnet_ids
-  sg_eks_nodes_id    = module.networking.sg_eks_nodes_id
+  project                 = var.project
+  cluster_version         = var.eks_cluster_version
+  vpc_id                  = module.networking.vpc_id
+  private_subnet_ids      = module.networking.private_subnet_ids
+  sg_eks_nodes_id         = module.networking.sg_eks_nodes_id
+  github_actions_role_arn = var.github_actions_role_arn
 }
 
 # ─────────────────────────────────────────────

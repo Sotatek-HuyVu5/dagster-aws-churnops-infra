@@ -83,3 +83,9 @@ variable "redshift_admin_username" {
   type        = string
   default     = "admin"
 }
+
+variable "github_actions_role_arn" {
+  description = "IAM role ARN for GitHub Actions — granted EKS cluster admin access entry"
+  type        = string
+  default     = "arn:aws:iam::654654329682:role/github-assume-role"
+}
