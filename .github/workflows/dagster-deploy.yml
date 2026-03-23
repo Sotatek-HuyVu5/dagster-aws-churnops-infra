@@ -6,11 +6,11 @@ name: Dagster Deploy
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master]
     paths:
       - "helm/dagster/values-prod.yaml"
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "helm/dagster/**"
 
@@ -28,7 +28,7 @@ permissions:
 jobs:
   helm-deploy:
     name: Helm upgrade (deploy)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
 
     outputs:
