@@ -7,8 +7,12 @@ name: Dagster Deploy
 on:
   pull_request:
     branches: [master]
+    paths:
+      - "helm/dagster/values-prod.yaml"
   push:
     branches: [master]
+    paths:
+      - "helm/dagster/values-prod.yaml"
 
 env:
   AWS_REGION: ap-southeast-1
