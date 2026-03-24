@@ -1,9 +1,10 @@
 resource "aws_ecr_repository" "dagster" {
   name                 = "${var.project}/dagster"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
-    scan_on_push = true
+    scan_on_push = false
   }
 
   tags = { Name = "${var.project}/dagster" }
@@ -29,9 +30,10 @@ resource "aws_ecr_lifecycle_policy" "dagster" {
 resource "aws_ecr_repository" "sagemaker" {
   name                 = "${var.project}/sagemaker"
   image_tag_mutability = "MUTABLE"
+  force_delete         = true
 
   image_scanning_configuration {
-    scan_on_push = true
+    scan_on_push = false
   }
 
   tags = { Name = "${var.project}/sagemaker" }

@@ -22,6 +22,8 @@ dagsterWebserver:
     # ↓ App repo CI update dòng này khi tạo PR
     tag: "20260323-103300-8cfba0b7"
     pullPolicy: Always
+  securityContext:
+    runAsUser: 0
   nodeSelector:
     workload: webserver
   resources:
@@ -92,7 +94,12 @@ postgresql:
   postgresqlHost: "churnops-dagster-db.czyqcmom6xd0.ap-southeast-1.rds.amazonaws.com"
   postgresqlUsername: "dagster"
   postgresqlDatabase: "dagster"
-  # password lấy từ global.postgresqlSecretName (key: postgresql-password)
+  # Dùng secret có sẵn — chart sẽ KHÔNG tự tạo secret với password mặc định
+  # Secret được tạo bởi pre-install.sh hoặc CI/CD từ AWS Secrets Manager
+  existingSecret: "dagster-postgresql-secret"
+  # RDS chỉ accept SSL — bắt buộc dùng sslmode=require
+  postgresqlParams:
+    sslmode: require
 
   service:
     port: 5432
@@ -106,6 +113,8 @@ dagsterDaemon:
     # ↓ App repo CI update dòng này
     tag: "20260323-103300-8cfba0b7"
     pullPolicy: Always
+  securityContext:
+    runAsUser: 0
   # Chạy cùng node với webserver (t3.small On-Demand) — stable services
   nodeSelector:
     workload: webserver

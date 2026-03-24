@@ -37,41 +37,60 @@ kubectl create serviceaccount dagster-sa \
   | kubectl apply -f -
 
 echo "==> Lấy RDS password từ Secrets Manager..."
-PG_PASSWORD=$(aws secretsmanager get-secret-value \
+# Ghi ra file để tránh shell expansion với special chars ($, !, etc.)
+aws secretsmanager get-secret-value \
   --secret-id churnops/postgres_password \
   --query SecretString \
-  --output text)
+  --output text \
+  | tr -d '\n' > /tmp/pg_password
 
-HELM_ANNOTATIONS=(
-  "meta.helm.sh/release-name=dagster"
-  "meta.helm.sh/release-namespace=dagster"
-)
-HELM_LABELS=(
-  "app.kubernetes.io/managed-by=Helm"
-)
+# Kiểm tra secret tồn tại và có giá trị hợp lệ
+PG_LEN=$(wc -c < /tmp/pg_password)
+if [ "$PG_LEN" -lt 8 ]; then
+  echo "❌ ERROR: Secret 'churnops/postgres_password' trống hoặc không tồn tại (got ${PG_LEN} bytes)."
+  echo "   Chạy 'terraform apply' trước để tạo secret, sau đó thử lại."
+  rm -f /tmp/pg_password
+  exit 1
+fi
+echo "   ✓ Password lấy được (${PG_LEN} bytes)"
 
-echo "==> Tạo K8s Secret: dagster-postgresql-secret (dùng bởi Helm chart)..."
+echo "==> Tạo K8s Secret: dagster-postgresql-secret (Helm sẽ dùng, không tự tạo)..."
+kubectl delete secret dagster-postgresql-secret --namespace dagster 2>/dev/null || true
 kubectl create secret generic dagster-postgresql-secret \
   --namespace dagster \
-  --from-literal=postgresql-password="$PG_PASSWORD" \
-  --dry-run=client -o yaml \
-  | kubectl annotate --local -f - "${HELM_ANNOTATIONS[@]}" --overwrite -o yaml \
-  | kubectl label --local -f - "${HELM_LABELS[@]}" --overwrite -o yaml \
-  | kubectl apply -f -
+  --from-file=postgresql-password=/tmp/pg_password
+kubectl annotate secret dagster-postgresql-secret --namespace dagster --overwrite \
+  "meta.helm.sh/release-name=dagster" "meta.helm.sh/release-namespace=dagster"
+kubectl label secret dagster-postgresql-secret --namespace dagster --overwrite \
+  "app.kubernetes.io/managed-by=Helm"
 
 echo "==> Tạo K8s Secret: dagster-secrets (env vars cho pods và run jobs)..."
+printf '%s' "$RDS_ENDPOINT" > /tmp/pg_host
+printf '%s' "$AWS_REGION"   > /tmp/aws_region
+
+kubectl delete secret dagster-secrets --namespace dagster 2>/dev/null || true
 kubectl create secret generic dagster-secrets \
   --namespace dagster \
-  --from-literal=DAGSTER_PG_HOST="$RDS_ENDPOINT" \
+  --from-file=DAGSTER_PG_HOST=/tmp/pg_host \
   --from-literal=DAGSTER_PG_PORT="5432" \
   --from-literal=DAGSTER_PG_DB="dagster" \
   --from-literal=DAGSTER_PG_USER="dagster" \
-  --from-literal=DAGSTER_PG_PASSWORD="$PG_PASSWORD" \
-  --from-literal=AWS_REGION="$AWS_REGION" \
-  --dry-run=client -o yaml \
-  | kubectl annotate --local -f - "${HELM_ANNOTATIONS[@]}" --overwrite -o yaml \
-  | kubectl label --local -f - "${HELM_LABELS[@]}" --overwrite -o yaml \
-  | kubectl apply -f -
+  --from-file=DAGSTER_PG_PASSWORD=/tmp/pg_password \
+  --from-file=AWS_REGION=/tmp/aws_region
+kubectl annotate secret dagster-secrets --namespace dagster --overwrite \
+  "meta.helm.sh/release-name=dagster" "meta.helm.sh/release-namespace=dagster"
+kubectl label secret dagster-secrets --namespace dagster --overwrite \
+  "app.kubernetes.io/managed-by=Helm"
+
+rm -f /tmp/pg_host /tmp/aws_region
+
+echo "==> Tạo values override cho Helm (password không lưu vào git)..."
+python3 -c "
+import sys, yaml
+password = open('/tmp/pg_password').read()
+print(yaml.dump({'postgresql': {'postgresqlPassword': password}}))
+" > /tmp/pg-values-override.yaml
+rm -f /tmp/pg_password
 
 echo "==> Update values-prod.yaml..."
 VALUES_FILE="$ROOT_DIR/helm/dagster/values-prod.yaml"

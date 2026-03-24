@@ -56,26 +56,6 @@ jobs:
           helm repo add dagster https://dagster-io.github.io/helm
           helm repo update
 
-      - name: Sync K8s secrets from AWS
-        run: |
-          kubectl create namespace ${{ env.K8S_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-
-          # dagster-postgresql-secret — RDS password cho Helm chart
-          PG_PASSWORD=$(aws secretsmanager get-secret-value \
-            --secret-id churnops/postgres_password \
-            --query SecretString --output text)
-
-          kubectl create secret generic dagster-postgresql-secret \
-            --namespace ${{ env.K8S_NAMESPACE }} \
-            --from-literal=postgresql-password="${PG_PASSWORD}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
-          # dagster-secrets — env vars inject vào webserver / daemon / run pods
-          kubectl create secret generic dagster-secrets \
-            --namespace ${{ env.K8S_NAMESPACE }} \
-            --from-literal=DAGSTER_PG_PASSWORD="${PG_PASSWORD}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
       - name: Helm upgrade --install
         run: |
           helm upgrade --install ${{ env.HELM_RELEASE }} dagster/dagster \
