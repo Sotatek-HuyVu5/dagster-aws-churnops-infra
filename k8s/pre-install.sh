@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Chạy script này 1 lần trước khi helm install
+# Chạy script này trước mỗi lần helm install/reinstall
+# Idempotent — an toàn khi chạy nhiều lần
 # Yêu cầu: terraform apply đã xong, aws cli + kubectl đã config
 
 set -euo pipefail
@@ -66,7 +67,7 @@ echo "   ✓ Password lấy được (${PG_LEN} bytes)"
 echo "==> Tạo K8s Secret: dagster-postgresql-secret (Helm ownership via server-side apply)..."
 # Dùng --server-side --field-manager=helm để tránh conflict khi Helm install
 PG_PASSWORD_B64=$(base64 -w0 < /tmp/pg_password)
-kubectl apply --server-side --field-manager=helm -f - <<EOF
+kubectl apply --server-side --field-manager=helm --force-conflicts -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -89,7 +90,7 @@ PG_PORT_B64=$(printf '%s' "5432" | base64 -w0)
 PG_DB_B64=$(printf '%s' "dagster" | base64 -w0)
 PG_USER_B64=$(printf '%s' "dagster" | base64 -w0)
 
-kubectl apply --server-side --field-manager=helm -f - <<EOF
+kubectl apply --server-side --field-manager=helm --force-conflicts -f - <<EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -102,7 +103,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 type: Opaque
 data:
-  DAGSTER_PG_HOST: ${PG_HOST_B64}
+  DAGSTER_PG_HOST: ${PG_HOST_B64}`
   DAGSTER_PG_PORT: ${PG_PORT_B64}
   DAGSTER_PG_DB: ${PG_DB_B64}
   DAGSTER_PG_USER: ${PG_USER_B64}
@@ -118,4 +119,5 @@ helm repo update
 
 echo ""
 echo "✅ Done. Chạy helm install tiếp theo:"
-echo "   helm upgrade --install churnops dagster/dagster -f $VALUES_FILE -n dagster"
+echo "   PG_PASSWORD=\$(aws secretsmanager get-secret-value --secret-id churnops/postgres_password --query SecretString --output text --region ap-southeast-1 | tr -d '\n')"
+echo "   helm upgrade --install churnops dagster/dagster -f helm/dagster/values-prod.yaml -n dagster --set \"postgresql.postgresqlPassword=\${PG_PASSWORD}\" --rollback-on-failure --timeout 10m"
