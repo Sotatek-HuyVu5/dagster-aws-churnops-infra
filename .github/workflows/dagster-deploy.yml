@@ -80,7 +80,7 @@ jobs:
       - name: Capture post-deploy outputs
         id: post-deploy
         run: |
-          IMAGE_TAG=$(grep 'tag:' helm/dagster/values-prod.yaml | awk '{print $2}')
+          IMAGE_TAG=$(grep -m1 'tag:' helm/dagster/values-prod.yaml | awk '{print $2}' | tr -d '"')
           echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Deployed image tag: ${IMAGE_TAG}"
 

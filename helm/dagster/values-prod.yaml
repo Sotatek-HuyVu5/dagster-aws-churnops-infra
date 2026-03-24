@@ -91,10 +91,10 @@ runLauncher:
       resources:
         requests:
           cpu: "250m"
-          memory: "512M"
+          memory: "512Mi"
         limits:
           cpu: "250m"
-          memory: "512M"
+          memory: "512Mi"
 # ─────────────────────────────────────────────
 # PostgreSQL — dùng RDS bên ngoài, không deploy in-cluster
 # ─────────────────────────────────────────────

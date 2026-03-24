@@ -73,7 +73,7 @@ metadata:
   name: dagster-postgresql-secret
   namespace: dagster
   annotations:
-    meta.helm.sh/release-name: dagster
+    meta.helm.sh/release-name: churnops
     meta.helm.sh/release-namespace: dagster
   labels:
     app.kubernetes.io/managed-by: Helm
@@ -96,7 +96,7 @@ metadata:
   name: dagster-secrets
   namespace: dagster
   annotations:
-    meta.helm.sh/release-name: dagster
+    meta.helm.sh/release-name: churnops
     meta.helm.sh/release-namespace: dagster
   labels:
     app.kubernetes.io/managed-by: Helm
@@ -110,19 +110,7 @@ data:
   AWS_REGION: ${AWS_REGION_B64}
 EOF
 
-echo "==> Tạo values override cho Helm (password không lưu vào git)..."
-python3 -c "
-import sys, yaml
-password = open('/tmp/pg_password').read()
-print(yaml.dump({'postgresql': {'postgresqlPassword': password}}))
-" > /tmp/pg-values-override.yaml
 rm -f /tmp/pg_password
-
-echo "==> Update values-prod.yaml..."
-VALUES_FILE="$ROOT_DIR/helm/dagster/values-prod.yaml"
-sed -i "s|REPLACE_WITH_ECR_URI|$ECR_URI|g"              "$VALUES_FILE"
-sed -i "s|REPLACE_WITH_RDS_ENDPOINT|$RDS_ENDPOINT|g"    "$VALUES_FILE"
-sed -i "s|REPLACE_WITH_DATA_BUCKET_NAME|$DATA_BUCKET|g" "$VALUES_FILE"
 
 echo "==> Add Dagster Helm repo..."
 helm repo add dagster https://dagster-io.github.io/helm
