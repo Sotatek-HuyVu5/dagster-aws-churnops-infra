@@ -73,7 +73,7 @@ jobs:
             --namespace ${{ env.K8S_NAMESPACE }} \
             --set "postgresql.postgresqlPassword=${PG_PASSWORD}" \
             --create-namespace \
-            --atomic \
+            --rollback-on-failure \
             --timeout 5m \
             --wait
 
