@@ -63,35 +63,52 @@ if [ "$PG_LEN" -lt 8 ]; then
 fi
 echo "   ✓ Password lấy được (${PG_LEN} bytes)"
 
-echo "==> Tạo K8s Secret: dagster-postgresql-secret (Helm sẽ dùng, không tự tạo)..."
-kubectl delete secret dagster-postgresql-secret --namespace dagster 2>/dev/null || true
-kubectl create secret generic dagster-postgresql-secret \
-  --namespace dagster \
-  --from-file=postgresql-password=/tmp/pg_password
-kubectl annotate secret dagster-postgresql-secret --namespace dagster --overwrite \
-  "meta.helm.sh/release-name=dagster" "meta.helm.sh/release-namespace=dagster"
-kubectl label secret dagster-postgresql-secret --namespace dagster --overwrite \
-  "app.kubernetes.io/managed-by=Helm"
+echo "==> Tạo K8s Secret: dagster-postgresql-secret (Helm ownership via server-side apply)..."
+# Dùng --server-side --field-manager=helm để tránh conflict khi Helm install
+PG_PASSWORD_B64=$(base64 -w0 < /tmp/pg_password)
+kubectl apply --server-side --field-manager=helm -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dagster-postgresql-secret
+  namespace: dagster
+  annotations:
+    meta.helm.sh/release-name: dagster
+    meta.helm.sh/release-namespace: dagster
+  labels:
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  postgresql-password: ${PG_PASSWORD_B64}
+EOF
 
 echo "==> Tạo K8s Secret: dagster-secrets (env vars cho pods và run jobs)..."
-printf '%s' "$RDS_ENDPOINT" > /tmp/pg_host
-printf '%s' "$AWS_REGION"   > /tmp/aws_region
+PG_HOST_B64=$(printf '%s' "$RDS_ENDPOINT" | base64 -w0)
+AWS_REGION_B64=$(printf '%s' "$AWS_REGION" | base64 -w0)
+PG_PORT_B64=$(printf '%s' "5432" | base64 -w0)
+PG_DB_B64=$(printf '%s' "dagster" | base64 -w0)
+PG_USER_B64=$(printf '%s' "dagster" | base64 -w0)
 
-kubectl delete secret dagster-secrets --namespace dagster 2>/dev/null || true
-kubectl create secret generic dagster-secrets \
-  --namespace dagster \
-  --from-file=DAGSTER_PG_HOST=/tmp/pg_host \
-  --from-literal=DAGSTER_PG_PORT="5432" \
-  --from-literal=DAGSTER_PG_DB="dagster" \
-  --from-literal=DAGSTER_PG_USER="dagster" \
-  --from-file=DAGSTER_PG_PASSWORD=/tmp/pg_password \
-  --from-file=AWS_REGION=/tmp/aws_region
-kubectl annotate secret dagster-secrets --namespace dagster --overwrite \
-  "meta.helm.sh/release-name=dagster" "meta.helm.sh/release-namespace=dagster"
-kubectl label secret dagster-secrets --namespace dagster --overwrite \
-  "app.kubernetes.io/managed-by=Helm"
-
-rm -f /tmp/pg_host /tmp/aws_region
+kubectl apply --server-side --field-manager=helm -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dagster-secrets
+  namespace: dagster
+  annotations:
+    meta.helm.sh/release-name: dagster
+    meta.helm.sh/release-namespace: dagster
+  labels:
+    app.kubernetes.io/managed-by: Helm
+type: Opaque
+data:
+  DAGSTER_PG_HOST: ${PG_HOST_B64}
+  DAGSTER_PG_PORT: ${PG_PORT_B64}
+  DAGSTER_PG_DB: ${PG_DB_B64}
+  DAGSTER_PG_USER: ${PG_USER_B64}
+  DAGSTER_PG_PASSWORD: ${PG_PASSWORD_B64}
+  AWS_REGION: ${AWS_REGION_B64}
+EOF
 
 echo "==> Tạo values override cho Helm (password không lưu vào git)..."
 python3 -c "
