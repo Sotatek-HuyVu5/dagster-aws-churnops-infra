@@ -15,7 +15,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Enable auto-merge (squash + delete branch)
+        # Dùng GitHub App token thay vì GITHUB_TOKEN
+        # App token trigger được workflow khác (deploy flow)
         run: |
           gh pr merge "${{ github.event.pull_request.number }}" \
             --auto \
@@ -23,4 +32,4 @@ jobs:
             --delete-branch \
             --repo "${{ github.repository }}"
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
