@@ -19,6 +19,15 @@ AWS_REGION=$(terraform output -raw aws_region 2>/dev/null || echo "ap-southeast-
 echo "==> Update kubeconfig..."
 aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
+echo "==> Patch CoreDNS để chạy trên Fargate (xoá annotation compute-type: ec2)..."
+# Fargate-only cluster: CoreDNS mặc định có annotation eks.amazonaws.com/compute-type=ec2
+# Phải xoá annotation này thì Fargate profile mới schedule được CoreDNS pods
+kubectl patch deployment coredns \
+  -n kube-system \
+  --type json \
+  -p='[{"op":"remove","path":"/spec/template/metadata/annotations/eks.amazonaws.com~1compute-type"}]' \
+  2>/dev/null || echo "   (CoreDNS annotation không tồn tại hoặc đã được patch — bỏ qua)"
+
 echo "==> Tạo namespace dagster..."
 kubectl create namespace dagster --dry-run=client -o yaml | kubectl apply -f -
 

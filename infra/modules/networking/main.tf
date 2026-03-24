@@ -182,48 +182,17 @@ resource "aws_vpc_endpoint" "s3" {
 # Security Groups
 # ─────────────────────────────────────────────
 
-resource "aws_security_group" "eks_nodes" {
-  name        = "${var.project}-sg-eks-nodes"
-  description = "EKS worker nodes"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "Node-to-node communication"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    self        = true
-  }
-
-  ingress {
-    description = "Control plane to nodes"
-    from_port   = 1025
-    to_port     = 65535
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = { Name = "${var.project}-sg-eks-nodes" }
-}
-
 resource "aws_security_group" "redshift" {
   name        = "${var.project}-sg-redshift"
   description = "Redshift Serverless"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "Redshift from EKS nodes"
-    from_port       = 5439
-    to_port         = 5439
-    protocol        = "tcp"
-    security_groups = [aws_security_group.eks_nodes.id]
+    description = "Redshift from Fargate pods (private subnets)"
+    from_port   = 5439
+    to_port     = 5439
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
   }
 
   egress {

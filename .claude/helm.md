@@ -16,12 +16,9 @@
 - **Tag is injected by CI** via `--set dagsterWebserver.image.tag=...`
 - Never hardcode a specific image tag in `values-prod.yaml`
 
-### Node Scheduling
-| Component | nodeSelector | Tolerations |
-|-----------|-------------|-------------|
-| webserver | `workload: webserver` | none |
-| daemon | `workload: webserver` | none |
-| run pods (jobs) | `workload: jobs` | `workload=jobs:NoSchedule` |
+### Scheduling (Fargate)
+- **Không dùng `nodeSelector` hay `tolerations`** — Fargate profile tự bắt pods theo namespace
+- Tất cả pods trong namespace `dagster` đều chạy trên Fargate tự động
 
 ### PostgreSQL (External RDS)
 - Uses external RDS — `postgresql.enabled: false` (no in-cluster Postgres)
@@ -44,8 +41,8 @@
 
 ### Run Launcher
 - Type: `K8sRunLauncher`
-- Jobs scheduled on `workload=jobs` nodes with spot tolerations
-- Resource requests/limits set on job pods to control spot scheduling
+- Job pods chạy trên Fargate — không cần nodeSelector hay tolerations
+- **Resource requests bắt buộc** trên job pods để Fargate xác định pod size
 
 ## Rules
 
@@ -56,4 +53,4 @@
 5. **Helm upgrade command** must always include `--rollback-on-failure`
 6. **ServiceAccount must be pre-created** by `k8s/pre-install.sh` before first Helm install
 7. **Never store real passwords in values-prod.yaml** — use `existingSecret` references
-8. **Resource limits are required** on webserver and daemon pods to prevent node overload on t3.small
+8. **Resource requests/limits are required** on all pods — Fargate sizes pod based on requests (valid combinations: 0.25/0.5GB, 0.5/1GB, 1/2GB, 2/4GB, ...)

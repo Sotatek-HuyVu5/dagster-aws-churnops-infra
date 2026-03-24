@@ -11,11 +11,6 @@ variable "db_subnet_ids" {
   type        = list(string)
 }
 
-variable "sg_eks_nodes_id" {
-  description = "Security group ID of EKS nodes — granted inbound 5432"
-  type        = string
-}
-
 variable "instance_class" {
   type    = string
   default = "db.t3.micro"

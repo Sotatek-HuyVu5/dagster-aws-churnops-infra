@@ -66,7 +66,6 @@ module "rds" {
 
   project               = var.project
   db_subnet_ids         = module.networking.db_subnet_ids
-  sg_eks_nodes_id       = module.networking.sg_eks_nodes_id
   vpc_id                = module.networking.vpc_id
   instance_class        = var.rds_instance_class
   allocated_storage     = var.rds_allocated_storage
@@ -100,7 +99,6 @@ module "eks" {
   cluster_version         = var.eks_cluster_version
   vpc_id                  = module.networking.vpc_id
   private_subnet_ids      = module.networking.private_subnet_ids
-  sg_eks_nodes_id         = module.networking.sg_eks_nodes_id
   github_actions_role_arn = var.github_actions_role_arn
 }
 

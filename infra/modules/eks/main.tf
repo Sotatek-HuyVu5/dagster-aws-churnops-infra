@@ -8,6 +8,12 @@ module "eks" {
   vpc_id     = var.vpc_id
   subnet_ids = var.private_subnet_ids
 
+  # Standard support — tránh phí Extended ($0.60/cluster/hour)
+  # Yêu cầu cluster đang chạy version trong standard support window (1.33+)
+  cluster_upgrade_policy = {
+    support_type = "STANDARD"
+  }
+
   # Allow kubectl from laptop
   cluster_endpoint_public_access = true
 
@@ -17,111 +23,9 @@ module "eks" {
   # Terraform caller (CI/CD / developer) tự động được admin access sau khi tạo cluster
   enable_cluster_creator_admin_permissions = true
 
-  # ─────────────────────────────────────────────
-  # Node IAM Role — dùng chung cho cả 2 node groups
-  # Module tự tạo role và attach các policy bắt buộc:
-  #   - AmazonEKSWorkerNodePolicy
-  #   - AmazonEKS_CNI_Policy
-  #   - AmazonEC2ContainerRegistryReadOnly
-  # ─────────────────────────────────────────────
-  create_iam_role          = true
-  iam_role_name            = "${var.project}-eks-node-role"
+  # Cluster IAM role (module tự tạo — bắt buộc, khác với node group role)
+  iam_role_name            = "${var.project}-eks-cluster-role"
   iam_role_use_name_prefix = false
-  iam_role_description     = "EKS managed node group role for ${var.project}"
-
-  iam_role_additional_policies = {
-    # Cho phép SSM Session Manager (optional nhưng hữu ích để debug nodes)
-    AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  }
-
-  # cluster_security_group_additional_rules: rule 443 nodes→API đã có sẵn trong module, không thêm để tránh duplicate
-
-  # ─────────────────────────────────────────────
-  # Node Security Group — thêm sg_eks_nodes_id vào nodes
-  # FIX: sg_eks_nodes_id (từ networking module) được dùng bởi RDS/Redshift SG rules
-  # → phải attach vào nodes thì RDS/Redshift mới accept traffic
-  # ─────────────────────────────────────────────
-  node_security_group_additional_rules = {
-    ingress_self_all = {
-      description = "Node to node all ports"
-      protocol    = "-1"
-      from_port   = 0
-      to_port     = 0
-      type        = "ingress"
-      self        = true
-    }
-    egress_all = {
-      description      = "Node all egress"
-      protocol         = "-1"
-      from_port        = 0
-      to_port          = 0
-      type             = "egress"
-      cidr_blocks      = ["0.0.0.0/0"]
-      ipv6_cidr_blocks = ["::/0"]
-    }
-  }
-
-  eks_managed_node_groups = {
-
-    # Node group 1 — t3.small On-Demand — dagster-webserver + dagster-daemon (stable services)
-    webserver = {
-      instance_types = ["t3.small"]
-      capacity_type  = "ON_DEMAND"
-
-      min_size     = 1
-      max_size     = 1
-      desired_size = 1
-
-      subnet_ids             = var.private_subnet_ids
-      vpc_security_group_ids = [var.sg_eks_nodes_id]
-
-      labels = { workload = "webserver" }
-
-      block_device_mappings = {
-        xvda = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size           = 20
-            volume_type           = "gp3"
-            delete_on_termination = true
-          }
-        }
-      }
-    }
-
-    # Node group 2 — t3.small Spot — Dagster run Job pods
-    jobs = {
-      instance_types = ["t3.small"]
-      capacity_type  = "SPOT"
-
-      min_size     = 1
-      max_size     = 3
-      desired_size = 1
-
-      subnet_ids             = var.private_subnet_ids
-      vpc_security_group_ids = [var.sg_eks_nodes_id]
-
-      # Taint để chỉ Job pods (có toleration) mới schedule lên đây
-      taints = [{
-        key    = "workload"
-        value  = "jobs"
-        effect = "NO_SCHEDULE"
-      }]
-
-      labels = { workload = "jobs" }
-
-      block_device_mappings = {
-        xvda = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size           = 20
-            volume_type           = "gp3"
-            delete_on_termination = true
-          }
-        }
-      }
-    }
-  }
 
   # ─────────────────────────────────────────────
   # EKS Access Entry — GitHub Actions role
@@ -129,7 +33,7 @@ module "eks" {
   # ─────────────────────────────────────────────
   access_entries = {
     github_actions = {
-      principal_arn = "arn:aws:iam::654654329682:role/github-assume-role"
+      principal_arn = var.github_actions_role_arn
 
       policy_associations = {
         admin = {
@@ -143,4 +47,65 @@ module "eks" {
   }
 
   tags = { Name = "${var.project}-eks" }
+}
+
+# ─────────────────────────────────────────────
+# Fargate Pod Execution Role
+# ─────────────────────────────────────────────
+
+resource "aws_iam_role" "fargate_pod_execution" {
+  name = "${var.project}-fargate-pod-execution"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "eks-fargate-pods.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = { Name = "${var.project}-fargate-pod-execution" }
+}
+
+resource "aws_iam_role_policy_attachment" "fargate_pod_execution" {
+  role       = aws_iam_role.fargate_pod_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+}
+
+# ─────────────────────────────────────────────
+# Fargate Profile: dagster namespace
+# Bắt toàn bộ pods trong namespace dagster (webserver, daemon, run jobs)
+# ─────────────────────────────────────────────
+
+resource "aws_eks_fargate_profile" "dagster" {
+  cluster_name           = module.eks.cluster_name
+  fargate_profile_name   = "${var.project}-dagster"
+  pod_execution_role_arn = aws_iam_role.fargate_pod_execution.arn
+  subnet_ids             = var.private_subnet_ids
+
+  selector {
+    namespace = "dagster"
+  }
+
+  tags = { Name = "${var.project}-fargate-dagster" }
+}
+
+# ─────────────────────────────────────────────
+# Fargate Profile: kube-system (CoreDNS)
+# Fargate-only cluster bắt buộc phải chạy CoreDNS trên Fargate
+# ─────────────────────────────────────────────
+
+resource "aws_eks_fargate_profile" "kube_system" {
+  cluster_name           = module.eks.cluster_name
+  fargate_profile_name   = "${var.project}-kube-system"
+  pod_execution_role_arn = aws_iam_role.fargate_pod_execution.arn
+  subnet_ids             = var.private_subnet_ids
+
+  selector {
+    namespace = "kube-system"
+    labels    = { "k8s-app" = "kube-dns" }
+  }
+
+  tags = { Name = "${var.project}-fargate-kube-system" }
 }

@@ -29,7 +29,7 @@ variable "vpc_cidr" {
 variable "eks_cluster_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.31"
+  default     = "1.33"
 }
 
 # --- RDS ---

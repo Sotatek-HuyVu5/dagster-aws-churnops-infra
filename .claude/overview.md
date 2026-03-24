@@ -18,7 +18,7 @@
 | IaC | Terraform >= 1.9, AWS Provider ~> 5.80 |
 | Orchestration | Dagster on EKS (Kubernetes 1.31) |
 | Container Registry | ECR (`churnops/dagster`, `churnops/sagemaker`) |
-| Compute | EKS managed node groups (EC2 t3.small) |
+| Compute | EKS Fargate (serverless) |
 | Metadata DB | RDS PostgreSQL 15 (db.t3.micro) |
 | Data Warehouse | Redshift Serverless (8 RPU) |
 | Storage | S3 (data lake + ML models) |
@@ -70,7 +70,7 @@
 │       ├── iam/                     # IRSA roles, SageMaker role, Redshift role
 │       ├── rds/                     # PostgreSQL for Dagster metadata
 │       ├── redshift/                # Redshift Serverless data warehouse
-│       ├── eks/                     # EKS cluster + managed node groups
+│       ├── eks/                     # EKS cluster + Fargate profiles
 │       ├── ssm/                     # SSM parameters (runtime config)
 │       └── secrets/                 # Secrets Manager (passwords)
 │
@@ -93,7 +93,7 @@ Internet
    ┌──────────┴───────────┐
    ▼                       ▼
 private-1a              private-1b
-(EKS nodes)             (EKS nodes)
+(Fargate pods)          (Fargate pods)
    │                       │
    └──────── EKS ──────────┘
                 │
@@ -109,9 +109,9 @@ private-1a              private-1b
     └───── SSM / Secrets Manager (config & creds)
 ```
 
-**EKS Node Groups:**
-- `webserver`: t3.small On-Demand, label `workload=webserver` — runs Dagster webserver + daemon
-- `jobs`: t3.small Spot, label `workload=jobs`, taint — runs Dagster pipeline job pods
+**EKS Fargate Profiles:**
+- `churnops-dagster`: namespace `dagster` — webserver, daemon, run job pods
+- `churnops-kube-system`: namespace `kube-system` label `k8s-app=kube-dns` — CoreDNS
 
 **Networking CIDR:**
 - VPC: `10.0.0.0/16`

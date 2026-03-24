@@ -1,5 +1,9 @@
+data "aws_vpc" "main" {
+  id = var.vpc_id
+}
+
 # ─────────────────────────────────────────────
-# Security Group — allow 5432 from EKS nodes
+# Security Group — allow 5432 from Fargate pods (VPC CIDR)
 # ─────────────────────────────────────────────
 
 resource "aws_security_group" "rds" {
@@ -8,11 +12,11 @@ resource "aws_security_group" "rds" {
   vpc_id      = var.vpc_id
 
   ingress {
-    description     = "PostgreSQL from EKS nodes"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [var.sg_eks_nodes_id]
+    description = "PostgreSQL from Fargate pods (VPC CIDR)"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.main.cidr_block]
   }
 
   egress {

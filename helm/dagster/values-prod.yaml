@@ -24,12 +24,10 @@ dagsterWebserver:
     pullPolicy: Always
   securityContext:
     runAsUser: 0
-  nodeSelector:
-    workload: webserver
   resources:
     requests:
-      cpu: "250m"
-      memory: "512Mi"
+      cpu: "500m"
+      memory: "1Gi"
     limits:
       cpu: "500m"
       memory: "1Gi"
@@ -66,25 +64,17 @@ runLauncher:
       # Inject secret vào mỗi run Job pod
       envSecrets:
         - name: dagster-secrets
-      # Job pods chạy trên node group "jobs" (t3.small Spot)
-      # Tách biệt hoàn toàn khỏi webserver + daemon node
+      # Job pods chạy trên Fargate — Fargate tự schedule, không cần nodeSelector/tolerations
       runK8sConfig:
-        podSpecConfig:
-          nodeSelector:
-            workload: jobs
-          tolerations:
-            - key: "workload"
-              value: "jobs"
-              effect: "NoSchedule"
         jobSpecConfig:
           ttlSecondsAfterFinished: 86400
       resources:
         requests:
           cpu: "250m"
-          memory: "512Mi"
+          memory: "512M"
         limits:
-          cpu: "1000m"
-          memory: "1Gi"
+          cpu: "250m"
+          memory: "512M"
 # ─────────────────────────────────────────────
 # PostgreSQL — dùng RDS bên ngoài, không deploy in-cluster
 # ─────────────────────────────────────────────
@@ -115,13 +105,10 @@ dagsterDaemon:
     pullPolicy: Always
   securityContext:
     runAsUser: 0
-  # Chạy cùng node với webserver (t3.small On-Demand) — stable services
-  nodeSelector:
-    workload: webserver
   resources:
     requests:
-      cpu: "100m"
-      memory: "256Mi"
+      cpu: "250m"
+      memory: "512Mi"
     limits:
       cpu: "250m"
       memory: "512Mi"

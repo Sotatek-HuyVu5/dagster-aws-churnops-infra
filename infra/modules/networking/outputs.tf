@@ -20,10 +20,6 @@ output "db_subnet_ids" {
   value       = [aws_subnet.db_1a.id, aws_subnet.db_1b.id, aws_subnet.db_1c.id]
 }
 
-output "sg_eks_nodes_id" {
-  value = aws_security_group.eks_nodes.id
-}
-
 output "sg_redshift_id" {
   value = aws_security_group.redshift.id
 }

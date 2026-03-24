@@ -16,11 +16,6 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "sg_eks_nodes_id" {
-  description = "Additional security group for EKS nodes (from networking module)"
-  type        = string
-}
-
 variable "github_actions_role_arn" {
   description = "IAM role ARN for GitHub Actions — granted EKS cluster admin access entry"
   type        = string
