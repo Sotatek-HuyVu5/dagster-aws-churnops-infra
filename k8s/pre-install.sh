@@ -37,7 +37,7 @@ kubectl create serviceaccount dagster-sa \
   --dry-run=client -o yaml \
   | kubectl annotate --local -f - \
     "eks.amazonaws.com/role-arn=$DAGSTER_IRSA_ROLE_ARN" \
-    "meta.helm.sh/release-name=dagster" \
+    "meta.helm.sh/release-name=churnops" \
     "meta.helm.sh/release-namespace=dagster" \
     --overwrite -o yaml \
   | kubectl label --local -f - \
@@ -130,4 +130,4 @@ helm repo update
 
 echo ""
 echo "✅ Done. Chạy helm install tiếp theo:"
-echo "   helm upgrade --install dagster dagster/dagster -f $VALUES_FILE -n dagster"
+echo "   helm upgrade --install churnops dagster/dagster -f $VALUES_FILE -n dagster"

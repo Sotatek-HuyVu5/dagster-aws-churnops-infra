@@ -9,9 +9,29 @@
 global:
   postgresqlSecretName: "dagster-postgresql-secret"
   serviceAccountName: "dagster-sa"
-# Xóa example user code deployment mặc định của chart
 dagster-user-deployments:
-  deployments: []
+  enabled: true
+  deployments:
+    - name: churnops-workspace
+      image:
+        repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
+        tag: "20260324-031549-4a12b719"
+        pullPolicy: Always
+      dagsterApiGrpcArgs:
+        - "-m"
+        - "app.dagster.definitions"
+        - "-a"
+        - "defs"
+      port: 3030
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "250m"
+          memory: "512Mi"
+      envSecrets:
+        - name: dagster-secrets
 # ─────────────────────────────────────────────
 # Webserver
 # ─────────────────────────────────────────────
@@ -84,9 +104,8 @@ postgresql:
   postgresqlHost: "churnops-dagster-db.czyqcmom6xd0.ap-southeast-1.rds.amazonaws.com"
   postgresqlUsername: "dagster"
   postgresqlDatabase: "dagster"
-  # Dùng secret có sẵn — chart sẽ KHÔNG tự tạo secret với password mặc định
-  # Secret được tạo bởi pre-install.sh hoặc CI/CD từ AWS Secrets Manager
-  existingSecret: "dagster-postgresql-secret"
+  # postgresqlPassword được pass qua --set lúc helm upgrade (từ AWS Secrets Manager)
+  # Không hardcode ở đây — xem CI/CD workflow hoặc dùng lệnh manual bên dưới
   # RDS chỉ accept SSL — bắt buộc dùng sslmode=require
   postgresqlParams:
     sslmode: require

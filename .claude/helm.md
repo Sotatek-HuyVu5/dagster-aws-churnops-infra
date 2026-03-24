@@ -4,7 +4,7 @@
 
 - **Chart**: Official [Dagster Helm chart](https://dagster-io.github.io/helm)
 - **Repo name**: `dagster`
-- **Release name**: `dagster`
+- **Release name**: `churnops`
 - **Namespace**: `dagster`
 - **Values file**: `helm/dagster/values-prod.yaml`
 

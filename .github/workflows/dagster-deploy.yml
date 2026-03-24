@@ -13,7 +13,7 @@ on:
 env:
   AWS_REGION: ap-southeast-1
   EKS_CLUSTER: churnops
-  HELM_RELEASE: dagster
+  HELM_RELEASE: churnops
   K8S_NAMESPACE: dagster
 
 permissions:
@@ -56,13 +56,24 @@ jobs:
           helm repo add dagster https://dagster-io.github.io/helm
           helm repo update
 
+      - name: Fetch PostgreSQL password from Secrets Manager
+        run: |
+          PG_PASSWORD=$(aws secretsmanager get-secret-value \
+            --secret-id churnops/postgres_password \
+            --query SecretString \
+            --output text \
+            --region ${{ env.AWS_REGION }} | tr -d '\n')
+          echo "::add-mask::${PG_PASSWORD}"
+          echo "PG_PASSWORD=${PG_PASSWORD}" >> $GITHUB_ENV
+
       - name: Helm upgrade --install
         run: |
           helm upgrade --install ${{ env.HELM_RELEASE }} dagster/dagster \
             -f helm/dagster/values-prod.yaml \
             --namespace ${{ env.K8S_NAMESPACE }} \
+            --set "postgresql.postgresqlPassword=${PG_PASSWORD}" \
             --create-namespace \
-            --rollback-on-failure \
+            --atomic \
             --timeout 5m \
             --wait
 
@@ -73,11 +84,11 @@ jobs:
           echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
           echo "Deployed image tag: ${IMAGE_TAG}"
 
-          kubectl rollout status deployment/dagster-webserver -n ${{ env.K8S_NAMESPACE }} \
+          kubectl rollout status deployment/churnops-dagster-webserver -n ${{ env.K8S_NAMESPACE }} \
             && echo "webserver_status=success" >> $GITHUB_OUTPUT \
             || echo "webserver_status=failed" >> $GITHUB_OUTPUT
 
-          kubectl rollout status deployment/dagster-daemon -n ${{ env.K8S_NAMESPACE }} \
+          kubectl rollout status deployment/churnops-dagster-daemon -n ${{ env.K8S_NAMESPACE }} \
             && echo "daemon_status=success" >> $GITHUB_OUTPUT \
             || echo "daemon_status=failed" >> $GITHUB_OUTPUT
 
