@@ -20,7 +20,7 @@ dagsterWebserver:
     # terraform output dagster_ecr_repo_url
     repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
     # ↓ App repo CI update dòng này khi tạo PR
-    tag: "20260323-103300-8cfba0b7"
+    tag: "20260324-031549-4a12b719"
     pullPolicy: Always
   securityContext:
     runAsUser: 0
@@ -57,7 +57,7 @@ runLauncher:
         # terraform output dagster_ecr_repo_url
         repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
         # ↓ App repo CI update dòng này cùng lúc với webserver
-        tag: "20260323-103300-8cfba0b7"
+        tag: "20260324-031549-4a12b719"
         pullPolicy: Always
       # Namespace để launch Job
       jobNamespace: dagster
@@ -101,7 +101,7 @@ dagsterDaemon:
     # terraform output dagster_ecr_repo_url
     repository: "654654329682.dkr.ecr.ap-southeast-1.amazonaws.com/churnops/dagster"
     # ↓ App repo CI update dòng này
-    tag: "20260323-103300-8cfba0b7"
+    tag: "20260324-031549-4a12b719"
     pullPolicy: Always
   securityContext:
     runAsUser: 0
