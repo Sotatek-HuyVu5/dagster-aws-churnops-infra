@@ -103,7 +103,7 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 type: Opaque
 data:
-  DAGSTER_PG_HOST: ${PG_HOST_B64}`
+  DAGSTER_PG_HOST: ${PG_HOST_B64}
   DAGSTER_PG_PORT: ${PG_PORT_B64}
   DAGSTER_PG_DB: ${PG_DB_B64}
   DAGSTER_PG_USER: ${PG_USER_B64}
