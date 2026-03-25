@@ -1,0 +1,50 @@
+# Pod tạm để seed data CSV vào RDS PostgreSQL bằng seed_data.py
+# Dùng lại secrets đã tạo bởi pre-install.sh
+#
+# Cách dùng:
+#   1. kubectl apply -f k8s/seed-pod.yaml
+#   2. kubectl wait --for=condition=Ready pod/seed-pod -n dagster --timeout=120s
+#   3. kubectl cp k8s/seed_data.py  dagster/seed-pod:/tmp/seed/seed_data.py
+#      kubectl cp /path/to/data_sample.csv dagster/seed-pod:/tmp/seed/data_sample.csv
+#   4. kubectl exec -it -n dagster seed-pod -- bash
+#        pip install pandas sqlalchemy psycopg2-binary --quiet
+#        python /tmp/seed/seed_data.py /tmp/seed/data_sample.csv
+#   5. kubectl delete -f k8s/seed-pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: seed-pod
+  namespace: dagster
+  labels:
+    app: seed-pod
+spec:
+  serviceAccountName: dagster-sa
+  restartPolicy: Never
+
+  # Fargate yêu cầu resource requests bắt buộc
+  containers:
+    - name: seed
+      image: python:3.11-slim
+      command: ["sleep", "infinity"]
+
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "512Mi"
+        limits:
+          cpu: "250m"
+          memory: "512Mi"
+
+      # Lấy thông tin kết nối từ secret dagster-secrets (tạo bởi pre-install.sh)
+      envFrom:
+        - secretRef:
+            name: dagster-secrets
+
+      # Mount thư mục /tmp/seed để copy CSV vào
+      volumeMounts:
+        - name: seed-data
+          mountPath: /tmp/seed
+
+  volumes:
+    - name: seed-data
+      emptyDir: {}
