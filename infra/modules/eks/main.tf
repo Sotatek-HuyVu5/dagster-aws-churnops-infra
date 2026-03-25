@@ -109,3 +109,41 @@ resource "aws_eks_fargate_profile" "kube_system" {
 
   tags = { Name = "${var.project}-fargate-kube-system" }
 }
+
+# ─────────────────────────────────────────────
+# CoreDNS Addon — configured for Fargate
+#
+# Vấn đề: EKS tự bootstrap CoreDNS với annotation compute-type=ec2
+# → CoreDNS không schedule được trên Fargate → DNS chết → toàn bộ pods bị stuck
+#
+# Fix: overwrite CoreDNS bằng managed addon với toleration cho Fargate taint
+# depends_on Fargate profile để addon chỉ apply sau khi profile đã sẵn sàng
+# ─────────────────────────────────────────────
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name                = module.eks.cluster_name
+  addon_name                  = "coredns"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  configuration_values = jsonencode({
+    tolerations = [
+      {
+        key      = "eks.amazonaws.com/compute-type"
+        operator = "Equal"
+        value    = "fargate"
+        effect   = "NoSchedule"
+      },
+      {
+        key      = "CriticalAddonsOnly"
+        operator = "Exists"
+      },
+      {
+        key    = "node-role.kubernetes.io/control-plane"
+        effect = "NoSchedule"
+      }
+    ]
+  })
+
+  depends_on = [aws_eks_fargate_profile.kube_system]
+}
